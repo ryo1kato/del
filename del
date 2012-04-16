@@ -1,6 +1,6 @@
-#!/bin/sh
-version="0.4.2"
-copyright="Copyright (c) 2000-2002,2007-2008 Ryoichi KATO <ryo1.kato@gmail.com>"
+#!/bin/bash
+version="0.5.0"
+copyright="Copyright (c) 2012 Ryoichi KATO <ryo1kato@gmail.com>"
 #
 # This is free software; you can redistribute it and/or modify it under
 # the terms of the GNU General Public License as published by the Free
@@ -18,60 +18,103 @@ copyright="Copyright (c) 2000-2002,2007-2008 Ryoichi KATO <ryo1.kato@gmail.com>"
 ##############################################################################
 
 # Where deleted file goes, and place of log file.
-TRASHDIR=${TRASHDIR:="$HOME/.TRASH"}
-LOG=$TRASHDIR/trash.log
+TRASHDIR="${TRASHDIR:="$HOME/.TRASH"}"
+TRASHLOG="$TRASHDIR/trash.log"
+trash_keep_days="${trash_keep_days:=14}"
 
-DATE=`date +%Y-%m-%d` # YYYY-MM-DD
-TIME=`date +%H:%M:%S` # hour:minitute:second
 
 
 ##############################################################################
 ##             You don't have to modify lines hereafter.
 ##############################################################################
-
+DATE=`date +%Y-%m-%d` # YYYY-MM-DD
+TIME=`date +%H:%M:%S` # hour:minitute:second
 
 # define a function for displaying help.
-program_name=${0##*/}
-HELP () {
-echo "USAGE : $program_name [-h|--help] FILE1 [FILE2 ...]
- -h --help     Show this help.
- -V --version  Show version information.
+program_name="${0##*/}"
+print_help () {
+echo "\
+Usage: $program_name [OPTIONS] FILE1 [FILE2 ...]
+       $program_name [OPTIONS] --clean[=DAYS]
+       $program_name [--help|--version]
+OPTIONS
+  -v,--verbose   Show filename as it is being deleted.
+  -h,--help      Show this help.
+  -V,--version   Show version information.
+  --clean[=DAYS] Clean up files older than DAYS(default 14) in $TRASHDIR
+DESCRIPTION
+  Safer 'rm'; mv files to \$TRASHDIR($TRASHDIR) instead of
+  actually unlinking them.
 "
 }
-
-##
-## parse command line options
-##
-case $1 in
-    "")
-        echo "ERROR: Too few argement" >&2
-        exit 1;;
-    -h|--help)
-        HELP ;
-        exit 0;;
-    -V|--Version)
+print_copyright () {
         echo "$program_name $version, Written by Ryoichi Kato."
         echo
         echo "$copyright"
         echo "This is free software; see the source for copying conditions."
         echo "There is NO warranty; not even for MERCHANTABILITY or FITNESS"
         echo "FOR A PARTICULAR PURPOSE."
-        exit 0;;
-    -i|--interactive)
-        echo "Sorry, interactive mode is not implemented yet."
-        exit 1;;
-    -v|--verbose)
-        echo "Sorry, verbose mode is not implemented yet."
-        exit 1;;
+}
+
+DIE () {
+    echo "$program_name: ERROR: $*" >&2
+    exit 1
+}
+
+print_verbose () {
+    if [ "$opt_verbose" = yes ]; then
+        echo "$program_name: $*"
+    fi
+}
+
+clean_trash () {
+    typeset -i keep_days="$1"
+    if [ "$opt_verbose" = yes ]; then
+        typeset find_print='-print'
+    fi
+
+    if [ "$keep_days" -gt 1 ]; then
+        find "${TRASHDIR}" -maxdepth 1 -ctime +"$keep_days" -exec rm -rf '{}' \; $find_print
+    else
+        DIE "DAYS to --clean must be more than 2"
+    fi
+}
+
+
+##
+## parse command line options
+##
+while [ $# -gt 0 ]
+do
+case $1 in
+    "") DIE "ERROR: Too few argement";;
+    -h|--help)    print_help;      exit 0;;
+    -V|--Version) print_copyright; exit 0;;
+    -v|--verbose) opt_verbose=yes;;
+    --clean=*)
+        clean_trash "${1#--clean=}"
+        exit $?;;
+    --clean)
+        if [ -n "$2" ]; then
+            clean_trash "$2"
+        else
+            clean_trash "$trash_keep_days"
+        fi
+        exit $?;;
+    --) shift; continue;;
+    -*) DIE "Unknown option: '$1'";;
+    *)  break;;
 esac
+shift
+done
 
 ##
 ## Check the existence of $TRASHDIR
 ##
 if [ ! -d "$TRASHDIR" ]; then
-    echo "$TRASHDIR doesn't exists. Creating." >&2
-    mkdir -p "$TRASHDIR" || { echo "couldnot mkdir $TRASHDIR"; exit 1 ;}
-    chmod 700 "$TRASHDIR" || { echo "couldnot chmod $TRASHDIR"; exit 1 ;}
+    echo "INFO: $TRASHDIR doesn't exist. Creating." >&2
+    mkdir -p "$TRASHDIR" || { echo "could not mkdir $TRASHDIR"; exit 1 ;}
+    chmod 700 "$TRASHDIR" || { echo "could not chmod $TRASHDIR"; exit 1 ;}
 fi
 
 ##
@@ -97,8 +140,14 @@ do
             ;;
     esac
 
-    # if the file is symlink, simply remove it.
-    if [ -L "$FILENAME" -o ! -s "$FILENAME" ]; then
+    # if the file is symlink or empty, simply remove it.
+    if [ -L "$FILENAME" ]; then
+       print_verbose "unlink symlink: $FILENAME"
+       rm "$FILENAME"
+       continue
+    fi
+    if [ ! -s "$FILENAME" ]; then
+       print_verbose "unlink empty: $FILENAME"
        rm "$FILENAME"
        continue
     fi
@@ -122,12 +171,16 @@ do
            # comment it out and uncomment next line.
            # NUMBER=`expr $NUMBER + 1`  # for non Korn shell systems.
            ((NUMBER++))      # ksh, bash, zsh.
-           NAMEINTRASH=$DATE-$NUMBER-$NAME
+           NAMEINTRASH="$DATE-$NUMBER-$NAME"
     done
 
     # OK, now mv the file to $TRASH!
     if mv "$FILENAME" "$TRASHDIR/$NAMEINTRASH"; then
-        echo "$DATE:$TIME:$ORIGINAL_PATH --> $NAMEINTRASH" >> "$LOG"
+        msg="$DATE:$TIME:$ORIGINAL_PATH --> $NAMEINTRASH"
+        echo "$msg" >> "$TRASHLOG"
+        if [ "$opt_verbose" = yes ]; then
+            print_verbose "$msg"
+        fi
     else
         echo "Got error!" >&2
         exit 1
