@@ -38,10 +38,11 @@ Usage: $program_name [OPTIONS] FILE1 [FILE2 ...]
        $program_name [OPTIONS] --clean[=DAYS]
        $program_name [--help|--version]
 OPTIONS
-  -v,--verbose   Show filename as it is being deleted.
-  -h,--help      Show this help.
-  -V,--version   Show version information.
-  --clean[=DAYS] Clean up files older than DAYS(default 14) in $TRASHDIR
+  -v,--verbose       Show filename as it is being deleted.
+  -h,--help          Show this help.
+  -V,--version       Show version information.
+  --clean[=DAYS]     Clean up files older than DAYS(default 14) in $TRASHDIR
+  -r,-R,--recursive  Ignored for 'rm' compatibility.
 DESCRIPTION
   Safer 'rm'; mv files to \$TRASHDIR($TRASHDIR) instead of
   actually unlinking them.
@@ -72,9 +73,14 @@ clean_trash () {
     if [ "$opt_verbose" = yes ]; then
         typeset find_print='-print'
     fi
-
+    if is_dryrun; then
+        rm_cmd=rm
+    else
+        rm_cmd=true
+    fi
     if [ "$keep_days" -gt 1 ]; then
-        find "${TRASHDIR}" -maxdepth 1 -ctime +"$keep_days" -exec rm -rf '{}' \; $find_print
+        find "${TRASHDIR}" -maxdepth 1 -ctime +"$keep_days" \
+             -exec "$rm_cmd" -rf '{}' \; $find_print
     else
         DIE "DAYS to --clean must be more than 2"
     fi
@@ -91,6 +97,8 @@ case $1 in
     -h|--help)    print_help;      exit 0;;
     -V|--Version) print_copyright; exit 0;;
     -v|--verbose) opt_verbose=yes;;
+    -n|--dry-run|--dryrun) opt_dryrun=yes; opt_verbose=yes;;
+    -r|-R|--recursive) ;; #ignored for 'rm' compatibility
     --clean=*)
         clean_trash "${1#--clean=}"
         exit $?;;
@@ -107,6 +115,12 @@ case $1 in
 esac
 shift
 done
+
+[ -z "$1" ] && DIE "ERROR: no file to delete given";
+
+is_dryrun () {
+    [ "$opt_dryrun" = yes ]
+}
 
 ##
 ## Check the existence of $TRASHDIR
@@ -143,12 +157,17 @@ do
     # if the file is symlink or empty, simply remove it.
     if [ -L "$FILENAME" ]; then
        print_verbose "unlink symlink: $FILENAME"
-       rm "$FILENAME"
+       is_dryrun || rm -f "$FILENAME"
+       continue
+    fi
+    if [ -p "$FILENAME" -o -S "$FILENAME" -o -b "$FILENAME" -o -c "$FILENAME" ]; then
+       print_verbose "unlink special file(pipe, socket or device file): $FILENAME"
+       is_dryrun || rm -f "$FILENAME"
        continue
     fi
     if [ ! -s "$FILENAME" ]; then
-       print_verbose "unlink empty: $FILENAME"
-       rm "$FILENAME"
+       print_verbose "unlink empty file: $FILENAME"
+       is_dryrun || rm -f "$FILENAME"
        continue
     fi
 
@@ -175,9 +194,9 @@ do
     done
 
     # OK, now mv the file to $TRASH!
-    if mv "$FILENAME" "$TRASHDIR/$NAMEINTRASH"; then
+    if is_dryrun || mv "$FILENAME" "$TRASHDIR/$NAMEINTRASH"; then
         msg="$DATE:$TIME:$ORIGINAL_PATH --> $NAMEINTRASH"
-        echo "$msg" >> "$TRASHLOG"
+        is_dryrun || { echo "$msg" >> "$TRASHLOG"; }
         if [ "$opt_verbose" = yes ]; then
             print_verbose "$msg"
         fi
