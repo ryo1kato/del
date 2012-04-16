@@ -93,9 +93,9 @@ clean_trash () {
 while [ $# -gt 0 ]
 do
 case $1 in
-    "") DIE "ERROR: Too few argement";;
+    "") DIE "Too few argement";;
     -h|--help)    print_help;      exit 0;;
-    -V|--Version) print_copyright; exit 0;;
+    -V|--version) print_copyright; exit 0;;
     -v|--verbose) opt_verbose=yes;;
     -n|--dry-run|--dryrun) opt_dryrun=yes; opt_verbose=yes;;
     -r|-R|--recursive) ;; #ignored for 'rm' compatibility
@@ -116,7 +116,7 @@ esac
 shift
 done
 
-[ -z "$1" ] && DIE "ERROR: no file to delete given";
+[ -z "$1" ] && DIE "no file to delete given";
 
 is_dryrun () {
     [ "$opt_dryrun" = yes ]
