@@ -48,6 +48,7 @@ DESCRIPTION
   actually unlinking them.
 "
 }
+
 print_copyright () {
         echo "$program_name $version, Written by Ryoichi Kato."
         echo
@@ -68,15 +69,19 @@ print_verbose () {
     fi
 }
 
+is_dryrun () {
+    [ "$opt_dryrun" = yes ]
+}
+
 clean_trash () {
     typeset -i keep_days="$1"
     if [ "$opt_verbose" = yes ]; then
         typeset find_print='-print'
     fi
     if is_dryrun; then
-        rm_cmd=rm
-    else
         rm_cmd=true
+    else
+        rm_cmd=rm
     fi
     if [ "$keep_days" -gt 1 ]; then
         find "${TRASHDIR}" -maxdepth 1 -ctime +"$keep_days" \
@@ -117,10 +122,6 @@ shift
 done
 
 [ -z "$1" ] && DIE "no file to delete given";
-
-is_dryrun () {
-    [ "$opt_dryrun" = yes ]
-}
 
 ##
 ## Check the existence of $TRASHDIR
