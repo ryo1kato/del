@@ -1,6 +1,6 @@
 #!/bin/bash
-version="0.5.0"
-copyright="Copyright (c) 2012 Ryoichi KATO <ryo1kato@gmail.com>"
+version="0.5.1"
+copyright="Copyright (c) 2013 Ryoichi KATO <ryo1kato@gmail.com>"
 #
 # This is free software; you can redistribute it and/or modify it under
 # the terms of the GNU General Public License as published by the Free
@@ -87,11 +87,12 @@ clean_trash () {
         find "${TRASHDIR}" -maxdepth 1 -ctime +"$keep_days" \
              -exec "$rm_cmd" -rf '{}' \; $find_print
     else
-        DIE "DAYS to --clean must be more than 2"
+        DIE "--clean=DAYS must be more than 2"
     fi
 }
 
-
+opt_clean_trash=no
+opt_verbose=no
 ##
 ## parse command line options
 ##
@@ -103,23 +104,31 @@ case $1 in
     -V|--version) print_copyright; exit 0;;
     -v|--verbose) opt_verbose=yes;;
     -n|--dry-run|--dryrun) opt_dryrun=yes; opt_verbose=yes;;
-    -r|-R|--recursive) ;; #ignored for 'rm' compatibility
-    --clean=*)
-        clean_trash "${1#--clean=}"
-        exit $?;;
+    -f|-r|-R|--recursive) ;; #ignored for 'rm' compatibility
+    --clean=*) opt_clean_trash=${1#--clean=};;
     --clean)
-        if [ -n "$2" ]; then
-            clean_trash "$2"
+        if [ $# -ge 2 ] && [[ $2 =~ ^[0-9]+$ ]] ; then
+            opt_clean_trash="$2"
+            shift
         else
-            clean_trash "$trash_keep_days"
+            opt_clean_trash="$trash_keep_days"
         fi
-        exit $?;;
+        ;;
     --) shift; continue;;
     -*) DIE "Unknown option: '$1'";;
     *)  break;;
 esac
 shift
 done
+
+if [ "$opt_clean_trash" != no ]
+then
+    if [ $# -ge 1 ]; then
+        echo "WARNING: ignoring arguments for --clean: $*" >&2
+    fi
+    clean_trash $opt_clean_trash
+    exit $?
+fi
 
 [ -z "$1" ] && DIE "no file to delete given";
 
