@@ -1,6 +1,6 @@
 #!/bin/bash
-version="0.5.1"
-copyright="Copyright (c) 2013 Ryoichi KATO <ryo1kato@gmail.com>"
+version="0.5.2"
+copyright="Copyright (c) 2014 Ryoichi KATO <ryo1kato@gmail.com>"
 #
 # This is free software; you can redistribute it and/or modify it under
 # the terms of the GNU General Public License as published by the Free
@@ -203,6 +203,8 @@ do
            NAMEINTRASH="$DATE-$NUMBER-$NAME"
     done
 
+    # Make sure --clean doesn't clean the file too early
+    touch "$FILENAME"
     # OK, now mv the file to $TRASH!
     if is_dryrun || mv "$FILENAME" "$TRASHDIR/$NAMEINTRASH"; then
         msg="$DATE:$TIME:$ORIGINAL_PATH --> $NAMEINTRASH"
